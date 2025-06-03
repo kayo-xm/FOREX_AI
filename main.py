@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, WebSocket, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Dict
 import numpy as np
@@ -25,6 +26,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# --- Serve built frontend (React) ---
+# Assumes your frontend is built and output is in ./frontend/build (relative to this file)
+if os.path.isdir("frontend/build"):
+    app.mount("/", StaticFiles(directory="frontend/build", html=True), name="static")
+
+# --- Healthcheck endpoint (for Docker, monitoring, etc.) ---
+@app.get("/api/health")
+def health():
+    return {"status": "ok"}
 
 # --- Load ML Models ---
 models = {
