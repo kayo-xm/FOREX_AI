@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>AI Forex Pattern Analyzer</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css?family=Inter:400,600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --background: #141414;
+      --foreground: #fff;
+      --accent: #1f1f1f;
+      --sidebar-width: 260px;
+      --sidebar-collapsed: 64px;
+      --border-glow: 0 0 10px 2px #ffffff33;
+      --primary: #fff;
+      --secondary: #444;
+      --glass: rgba(255,255,255,0.05);
+      --glass-blur: blur(14px);
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: var(--background);
+      color: var(--foreground);
+      min-height: 100vh;
+      box-sizing: border-box;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      display: flex;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      position: fixed;
+      left: 0; top: 0; bottom: 0;
+      width: var(--sidebar-width);
+      background: var(--accent);
+      box-shadow: var(--border-glow);
+      transition: width 0.4s cubic-bezier(0.77,0,0.18,1);
+      display: flex;
+      flex-direction: column;
+      z-index: 90;
+      backdrop-filter: var(--glass-blur);
+      border-right: 1px solid #222;
+    }
+    .sidebar.collapsed {
+      width: var(--sidebar-collapsed);
+    }
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      height: 64px;
+      padding: 0 20px;
+      font-size: 1.4rem;
+      font-weight: 600;
+      border-bottom: 1px solid #232323;
+      color: var(--primary);
+      letter-spacing: 1px;
+      background: var(--glass);
+      user-select: none;
+      justify-content: space-between;
+    }
+    .sidebar-toggle {
+      background: none;
+      border: none;
+      color: #fff;
+      font-size: 1.5rem;
+      cursor: pointer;
+      outline: none;
+      transition: color 0.2s;
+    }
+    .sidebar .nav {
+      display: flex;
+      flex-direction: column;
+      padding: 30px 0 0 0;
+      flex: 1;
+      gap: 10px;
+    }
+    .sidebar .nav a {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      padding: 16px 24px;
+      text-decoration: none;
+      color: #fff;
+      font-size: 1.05rem;
+      font-weight: 500;
+      border-left: 4px solid transparent;
+      transition: background 0.18s, border-color 0.2s, color 0.2s;
+      border-radius: 0 24px 24px 0;
+      position: relative;
+    }
+    .sidebar .nav a.active,
+    .sidebar .nav a:hover {
+      background: linear-gradient(90deg, #fff1 80%, transparent 100%);
+      border-left: 4px solid #fff;
+      color: #fff;
+    }
+    .sidebar .nav i {
+      width: 24px;
+      text-align: center;
+      font-size: 1.25rem;
+      opacity: 0.9;
+    }
+    .sidebar .nav span {
+      transition: opacity 0.3s;
+    }
+    .sidebar.collapsed .nav span {
+      opacity: 0;
+      width: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .sidebar-footer {
+      padding: 18px 20px;
+      border-top: 1px solid #232323;
+      font-size: 0.98rem;
+      opacity: 0.6;
+      text-align: left;
+      letter-spacing: 0.2px;
+      background: var(--glass);
+    }
+    .sidebar.collapsed .sidebar-header span,
+    .sidebar.collapsed .sidebar-footer {
+      display: none;
+    }
+
+    /* Main Content */
+    .main-content {
+      margin-left: var(--sidebar-width);
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      transition: margin-left 0.4s cubic-bezier(0.77,0,0.18,1);
+    }
+    .sidebar.collapsed ~ .main-content {
+      margin-left: var(--sidebar-collapsed);
+    }
+
+    header {
+      padding: 46px 32px 24px 32px;
+      background: linear-gradient(90deg, #fff1 30%, transparent 110%);
+      box-shadow: var(--border-glow);
+      border-radius: 0 0 28px 28px;
+      text-align: left;
+      margin-bottom: 22px;
+      position: relative;
+    }
+    header h1 {
+      margin: 0 0 8px 0;
+      font-size: 2.4rem;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      color: #fff;
+      text-shadow: 0 0 18px #fff2, 0 1px 0 #fff3;
+    }
+    header p {
+      margin: 0;
+      color: #ccc;
+      font-size: 1.15rem;
+      letter-spacing: 0.2px;
+      opacity: 0.74;
+    }
+
+    /* Card/Section Styles */
+    .card {
+      background: var(--glass);
+      border-radius: 22px;
+      box-shadow: var(--border-glow);
+      padding: 32px 32px 24px 32px;
+      margin-bottom: 34px;
+      border: 1px solid #222;
+      backdrop-filter: blur(10px);
+      animation: fadein 0.6s cubic-bezier(0.77,0,0.18,1);
+    }
+    @keyframes fadein {
+      from { opacity: 0; transform: translateY(24px);}
+      to { opacity: 1; transform: none;}
+    }
+
+    .upload-area {
+      border: 2px dashed #fff4;
+      padding: 48px 0;
+      text-align: center;
+      margin: 18px 0 30px 0;
+      cursor: pointer;
+      border-radius: 16px;
+      background: var(--accent);
+      transition: background 0.3s, border-color 0.3s;
+      color: #fff;
+      font-size: 1.2rem;
+      box-shadow: 0 0 20px #fff1;
+    }
+    .upload-area:hover {
+      background: #212121;
+      border-color: #fff;
+      color: #fff;
+    }
+
+    .form-group {
+      margin-bottom: 26px;
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #fff;
+      font-size: 1rem;
+    }
+    select, input[type="number"], input[type="text"], input[type="file"] {
+      width: 100%;
+      padding: 13px 12px;
+      border: 1px solid #393939;
+      border-radius: 8px;
+      background: #222;
+      color: #fff;
+      font-size: 1.1rem;
+      outline: none;
+      transition: border 0.2s;
+      margin-top: 4px;
+    }
+    select:focus, input:focus {
+      border: 1.5px solid #fff;
+      background: #1a1a1a;
+    }
+    .btn {
+      background: linear-gradient(90deg, #fff2 0%, #fff1 100%);
+      color: #fff;
+      border: none;
+      padding: 15px 38px;
+      border-radius: 9px;
+      cursor: pointer;
+      font-size: 1.1rem;
+      font-weight: 600;
+      transition: background 0.18s, color 0.2s, box-shadow 0.21s;
+      box-shadow: 0 0 10px #fff2;
+      margin-right: 12px;
+    }
+    .btn:active {
+      background: #fff2;
+      color: #ddd;
+      box-shadow: 0 0 25px #fff3;
+    }
+    .btn-secondary {
+      background: #222 !important;
+      color: #fff !important;
+    }
+    /* File List */
+    #fileList { margin-top: 14px; }
+    .file-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid #222;
+      color: #fff;
+      font-size: 1rem;
+    }
+    /* Metrics */
+    .metrics {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      margin: 18px 0;
+    }
+    .metric {
+      flex: 1;
+      min-width: 140px;
+      background: #222;
+      padding: 15px;
+      border-radius: 10px;
+      text-align: center;
+      border: 1px solid #393939;
+      box-shadow: 0 1.5px 8px #fff1;
+    }
+    .metric-value {
+      font-size: 2.1rem;
+      font-weight: bold;
+      margin: 9px 0;
+      color: #fff;
+      text-shadow: 0 0 8px #fff2;
+    }
+    .signal {
+      padding: 16px;
+      border-radius: 9px;
+      margin: 20px 0 10px 0;
+      text-align: center;
+      font-weight: bold;
+      font-size: 1.15rem;
+      box-shadow: 0 0 18px #fff1;
+      border: 1px solid #393939;
+    }
+    .signal.buy { background: #18bc9c22; color: #18bc9c; }
+    .signal.sell { background: #e74c3c22; color: #e74c3c; }
+    .signal.hold { background: #f1c40f22; color: #f1c40f; }
+    #chartContainer { height: 340px; margin: 28px 0 10px 0; }
+    .hidden { display: none; }
+    /* Responsive */
+    @media (max-width: 900px) {
+      .sidebar { width: var(--sidebar-collapsed) !important; }
+      .main-content { margin-left: var(--sidebar-collapsed) !important; }
+      .sidebar .nav span { display: none; }
+    }
+    @media (max-width: 600px) {
+      header { padding: 30px 10px 14px 10px; }
+      .main-content { padding: 0 !important; }
+      .card { padding: 17px 6px 13px 6px; border-radius: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <span><i class="fa fa-robot"></i> <span style="margin-left:8px;">FOREX AI</span></span>
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Collapse Sidebar">
+        <i class="fa fa-bars"></i>
+      </button>
+    </div>
+    <div class="nav">
+      <a href="#upload" class="active"><i class="fa fa-upload"></i> <span>Upload Patterns</span></a>
+      <a href="#analysis"><i class="fa fa-brain"></i> <span>Analyze & Backtest</span></a>
+      <a href="#results"><i class="fa fa-chart-line"></i> <span>Results</span></a>
+      <a href="#calculator"><i class="fa fa-calculator"></i> <span>Position Sizing</span></a>
+      <a href="#live"><i class="fa fa-bolt"></i> <span>Live Updates</span></a>
+      <!-- Add more features here if you like -->
+    </div>
+    <div class="sidebar-footer">
+      <span><i class="fa fa-code"></i> Powered by Kayo-XM</span>
+    </div>
+  </nav>
+  <div class="main-content">
+    <header>
+      <h1>AI Forex Pattern Analyzer</h1>
+      <p>Upload your trading patterns and get AI-powered analysis</p>
+    </header>
+    <section class="card" id="upload">
+      <h2><i class="fa fa-upload"></i> Step 1: Upload Your Patterns</h2>
+      <div class="upload-area" id="uploadArea">
+        <p style="font-size:2.1rem;">📁</p>
+        <p>Drag & drop images/videos here<br>
+        <span style="font-size:1rem;opacity:0.7;">or click to browse files</span></p>
+        <input type="file" id="fileInput" accept="image/*,video/*" multiple style="display: none;">
+      </div>
+      <div id="fileList"></div>
+      <div class="form-group">
+        <label for="currencyPair"><i class="fa fa-coins"></i> Currency Pair</label>
+        <select id="currencyPair">
+          <option value="EURUSD">EUR/USD</option>
+          <option value="GBPUSD">GBP/USD</option>
+          <option value="USDJPY">USD/JPY</option>
+          <option value="AUDUSD">AUD/USD</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="timeframe"><i class="fa fa-clock"></i> Timeframe</label>
+        <select id="timeframe">
+          <option value="1h">1 Hour</option>
+          <option value="4h">4 Hours</option>
+          <option value="1d">Daily</option>
+          <option value="1w">Weekly</option>
+        </select>
+      </div>
+      <button class="btn" id="trainBtn"><i class="fa fa-brain"></i> Train AI Model</button>
+    </section>
+    <section class="card" id="analysis" style="display:none;">
+      <h2><i class="fa fa-brain"></i> Step 2: Run Analysis</h2>
+      <div class="form-group">
+        <label for="backtestDays"><i class="fa fa-calendar-days"></i> Backtest Period (Days)</label>
+        <input type="number" id="backtestDays" value="20" min="1" max="365">
+      </div>
+      <div class="form-group">
+        <label for="riskPercent"><i class="fa fa-percent"></i> Risk Per Trade (%)</label>
+        <input type="number" id="riskPercent" value="2" min="0.1" max="10" step="0.1">
+      </div>
+      <button class="btn" id="analyzeBtn" disabled><i class="fa fa-chart-line"></i> Analyze & Backtest</button>
+    </section>
+    <section class="card hidden" id="results">
+      <h2><i class="fa fa-chart-line"></i> Analysis Results</h2>
+      <div id="signalDisplay" class="signal hold">
+        Current Signal: ANALYZING...
+      </div>
+      <h3>Performance Metrics</h3>
+      <div class="metrics">
+        <div class="metric">
+          <div>Win Rate</div>
+          <div class="metric-value" id="winRate">--%</div>
+        </div>
+        <div class="metric">
+          <div>Profit Factor</div>
+          <div class="metric-value" id="profitFactor">--</div>
+        </div>
+        <div class="metric">
+          <div>Total Trades</div>
+          <div class="metric-value" id="totalTrades">--</div>
+        </div>
+      </div>
+      <h3>Backtest Results</h3>
+      <div id="chartContainer">
+        <canvas id="resultsChart"></canvas>
+      </div>
+    </section>
+    <section class="card" id="calculator" style="display:none;">
+      <h2><i class="fa fa-calculator"></i> Position Sizing Calculator</h2>
+      <div class="form-group">
+        <label for="accountBalance"><i class="fa fa-wallet"></i> Account Balance ($)</label>
+        <input type="number" id="accountBalance" value="10000">
+      </div>
+      <div class="form-group">
+        <label for="stopLossPips"><i class="fa fa-arrows-to-dot"></i> Stop Loss (Pips)</label>
+        <input type="number" id="stopLossPips" value="20">
+      </div>
+      <button class="btn" id="calculateBtn"><i class="fa fa-equals"></i> Calculate Position Size</button>
+      <div class="metric" style="margin-top: 18px;">
+        <div>Recommended Position Size</div>
+        <div class="metric-value" id="positionSize">-- lots</div>
+      </div>
+    </section>
+    <section class="card" id="live" style="display:none;">
+      <h2><i class="fa fa-bolt"></i> Live Trading Updates</h2>
+      <pre id="liveLog" style="background:#191919; padding:1em; min-height:80px; border-radius:6px; color:#fff;"></pre>
+      <button class="btn" id="startLiveBtn"><i class="fa fa-play"></i> Start Live Updates</button>
+      <button class="btn btn-secondary" id="stopLiveBtn"><i class="fa fa-stop"></i> Stop Live Updates</button>
+    </section>
+  </div>
+  <script>
+    // Sidebar toggle/collapsible
+    const sidebar = document.getElementById('sidebar');
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const navLinks = document.querySelectorAll('.sidebar .nav a');
+    const mainSections = {
+      upload: document.getElementById('upload'),
+      analysis: document.getElementById('analysis'),
+      results: document.getElementById('results'),
+      calculator: document.getElementById('calculator'),
+      live: document.getElementById('live')
+    };
+
+    sidebarToggle.addEventListener('click', () => {
+      sidebar.classList.toggle('collapsed');
+      document.querySelector('.main-content').classList.toggle('sidebar-collapsed');
+    });
+
+    // Sidebar navigation
+    navLinks.forEach(link => {
+      link.addEventListener('click', e => {
+        e.preventDefault();
+        navLinks.forEach(l => l.classList.remove('active'));
+        link.classList.add('active');
+        // Hide/show relevant main sections
+        for (const key in mainSections) {
+          if (link.getAttribute('href') === '#' + key) {
+            mainSections[key].style.display = '';
+            // For results, if hidden, just remove hidden class
+            if (key === 'results') mainSections[key].classList.remove('hidden');
+          } else {
+            if (key === 'results') mainSections[key].classList.add('hidden');
+            else mainSections[key].style.display = 'none';
+          }
+        }
+        // If on mobile, auto-collapse sidebar
+        if (window.innerWidth < 800) sidebar.classList.add('collapsed');
+      });
+    });
+
+    // DOM Elements
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const fileList = document.getElementById('fileList');
+    const trainBtn = document.getElementById('trainBtn');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const calculateBtn = document.getElementById('calculateBtn');
+    const resultsSection = document.getElementById('results');
+    const analysisSection = document.getElementById('analysis');
+    const signalDisplay = document.getElementById('signalDisplay');
+    const liveSection = document.getElementById('live');
+    const liveLog = document.getElementById('liveLog');
+    const startLiveBtn = document.getElementById('startLiveBtn');
+    const stopLiveBtn = document.getElementById('stopLiveBtn');
+    // Chart setup
+    const ctx = document.getElementById('resultsChart').getContext('2d');
+    let resultsChart;
+    let ws = null;
+
+    // Upload functionality
+    uploadArea.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => {
+      const files = e.target.files;
+      if (files.length > 0) {
+        fileList.innerHTML = '';
+        Array.from(files).forEach(file => {
+          const fileItem = document.createElement('div');
+          fileItem.className = 'file-item';
+          fileItem.innerHTML = `<span><i class="fa fa-file"></i> ${file.name}</span><span>${(file.size / 1024).toFixed(2)} KB</span>`;
+          fileList.appendChild(fileItem);
+        });
+        analysisSection.style.display = '';
+        navLinks[1].classList.remove('disabled');
+      }
+    });
+    uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.style.background = 'rgba(255,255,255,0.08)'; });
+    uploadArea.addEventListener('dragleave', () => { uploadArea.style.background = ''; });
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.style.background = '';
+      fileInput.files = e.dataTransfer.files;
+      const event = new Event('change');
+      fileInput.dispatchEvent(event);
+    });
+
+    // Train button handler (just UI step)
+    trainBtn.addEventListener('click', () => {
+      if (fileInput.files.length === 0) { alert('Please upload at least one file first'); return; }
+      trainBtn.textContent = 'Ready!';
+      trainBtn.disabled = true;
+      alert('Files uploaded! Now you can analyze the patterns.');
+      analyzeBtn.disabled = false;
+    });
+
+    // Analyze button handler (calls backend)
+    analyzeBtn.addEventListener('click', async () => {
+      analyzeBtn.textContent = 'Analyzing...';
+      analyzeBtn.disabled = true;
+      signalDisplay.textContent = 'Current Signal: ANALYZING...';
+      signalDisplay.className = 'signal hold';
+      // Prepare form data
+      const formData = new FormData();
+      for (const file of fileInput.files) formData.append('patterns', file);
+      formData.append('pair', document.getElementById('currencyPair').value);
+      formData.append('timeframe', document.getElementById('timeframe').value);
+      formData.append('backtest_days', document.getElementById('backtestDays').value);
+      formData.append('risk_percent', document.getElementById('riskPercent').value);
+      // Call /api/analyze
+      try {
+        const res = await fetch('/api/analyze', { method: 'POST', body: formData });
+        const data = await res.json();
+        showResults(data);
+        analyzeBtn.textContent = 'Analyze & Backtest';
+        liveSection.style.display = '';
+        navLinks[4].classList.remove('disabled');
+        navLinks[2].classList.remove('disabled');
+      } catch (err) {
+        alert('Analysis failed: ' + err);
+        analyzeBtn.textContent = 'Analyze & Backtest';
+      }
+      analyzeBtn.disabled = false;
+    });
+
+    // Show results from backend
+    function showResults(data) {
+      // Metrics
+      document.getElementById('winRate').textContent = data?.performance?.win_rate ? (data.performance.win_rate * 100).toFixed(1) + '%' : '--%';
+      document.getElementById('profitFactor').textContent = data?.performance?.profit_factor ?? '--';
+      document.getElementById('totalTrades').textContent = data?.performance?.total_trades ?? '--';
+      // Signal display
+      let signal = (data.signal || 'HOLD').toUpperCase();
+      let signalClass = signal === 'BUY' ? 'buy' : signal === 'SELL' ? 'sell' : 'hold';
+      signalDisplay.textContent = `Current Signal: ${signal}`;
+      signalDisplay.className = `signal ${signalClass}`;
+      // Chart (using equity curve or random if missing)
+      let chartData = data?.performance?.equity_curve ?? Array.from({length: 20}, (_, i) => 100 + i * 2 + Math.random() * 10);
+      createChart(chartData);
+      resultsSection.classList.remove('hidden');
+      calculatePositionSize();
+    }
+
+    function createChart(dataArr) {
+      if (resultsChart) resultsChart.destroy();
+      let labels = dataArr.map((_, i) => `Day ${i + 1}`);
+      resultsChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Equity Curve',
+            data: dataArr,
+            borderColor: '#fff',
+            backgroundColor: 'rgba(255,255,255,0.07)',
+            tension: 0.45,
+            fill: true
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { position: 'top', labels: { color: '#fff' } }, tooltip: { mode: 'index', intersect: false } },
+          scales: { y: { beginAtZero: false, ticks: { color: '#fff' } }, x: { ticks: { color: '#fff' } } }
+        }
+      });
+    }
+
+    // Calculate position size
+    calculateBtn.addEventListener('click', calculatePositionSize);
+    function calculatePositionSize() {
+      const balance = parseFloat(document.getElementById('accountBalance').value);
+      const risk = parseFloat(document.getElementById('riskPercent').value);
+      const stopLoss = parseFloat(document.getElementById('stopLossPips').value);
+      if (!balance || !risk || !stopLoss) {
+        document.getElementById('positionSize').textContent = `-- lots`;
+        return;
+      }
+      const riskAmount = balance * (risk / 100);
+      const pipValue = 10; // Standard for forex
+      const positionSize = riskAmount / (stopLoss * pipValue);
+      document.getElementById('positionSize').textContent = `${positionSize.toFixed(2)} lots`;
+    }
+
+    // WebSocket for live trading updates
+    startLiveBtn.addEventListener('click', () => {
+      if (ws) ws.close();
+      liveLog.textContent = '';
+      let pair = document.getElementById('currencyPair').value;
+      let protocol = window.location.protocol === "https:" ? "wss" : "ws";
+      let wsUrl = `${protocol}://${window.location.host}/ws/live?pair=${encodeURIComponent(pair)}`;
+      ws = new WebSocket(wsUrl);
+      ws.onopen = () => {
+        liveLog.textContent += "Connected to live updates...\n";
+      };
+      ws.onmessage = (msg) => {
+        try {
+          const data = JSON.parse(msg.data);
+          liveLog.textContent += `[${new Date().toLocaleTimeString()}] ` + (data.message || JSON.stringify(data)) + "\n";
+          liveLog.scrollTop = liveLog.scrollHeight;
+        } catch {
+          liveLog.textContent += msg.data + "\n";
+        }
+      };
+      ws.onclose = () => {
+        liveLog.textContent += "Disconnected from live updates.\n";
+      };
+      ws.onerror = (e) => {
+        liveLog.textContent += "WebSocket error: " + e + "\n";
+      };
+    });
+    stopLiveBtn.addEventListener('click', () => {
+      if (ws) { ws.close(); ws = null; }
+      liveLog.textContent += "Stopped live updates.\n";
+    });
+
+    // Optional: auto-stop WebSocket when leaving page
+    window.addEventListener('beforeunload', () => {
+      if (ws) ws.close();
+    });
+
+    // Smooth scroll for sidebar navigation (optional)
+    navLinks.forEach(link => {
+      link.addEventListener('click', e => {
+        const id = link.getAttribute('href');
+        if (document.querySelector(id)) {
+          setTimeout(() => {
+            document.querySelector(id).scrollIntoView({behavior: "smooth"});
+          }, 150);
+        }
+      });
+    });
+  </script>
+</body>
+</html>
